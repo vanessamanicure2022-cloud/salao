@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+    --color-brand-50: #fdf2f8;
+    --color-brand-100: #fce7f3;
+    --color-brand-200: #fbcfe8;
+    --color-brand-300: #f9a8d4;
+    --color-brand-400: #f472b6;
+    --color-brand-500: #ec4899;
+    --color-brand-600: #db2777;
+    --color-brand-700: #be185d;
+    --color-brand-800: #9d174d;
+    --color-brand-900: #831843;
+
+    --color-accent-nude: #F5E6E0;
+    --color-accent-rose: #E9C0B5;
+    --color-accent-gold: #C5A059;
+}
+
+@layer base {
+    body {
+        @apply bg-[#FDFBFB] text-gray-800;
+    }
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+}
+
+.btn-primary {
+    @apply bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg transition-all shadow-md active:scale-95;
+}
