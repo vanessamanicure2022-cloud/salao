@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Search, MoreVertical, Phone, Mail, Heart } from 'lucide-react'
+import { Plus, Search, MoreVertical, Phone, Mail, Heart, Edit2, Trash2, X } from 'lucide-react'
 import { supabase } from '../services/supabase'
 
 interface Client {
@@ -18,6 +18,8 @@ const Clients: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
+    const [editingClient, setEditingClient] = useState<Client | null>(null)
+    const [activeMenu, setActiveMenu] = useState<string | null>(null)
 
     // Form states
     const [formData, setFormData] = useState({
@@ -43,9 +45,26 @@ const Clients: React.FC = () => {
         fetchClients()
     }, [])
 
-    const handleOpenModal = () => setIsModalOpen(true)
+    const handleOpenModal = (client?: Client) => {
+        if (client) {
+            setEditingClient(client)
+            setFormData({
+                name: client.name,
+                phone: client.phone || '',
+                email: client.email || '',
+                preferences: client.preferences || ''
+            })
+        } else {
+            setEditingClient(null)
+            setFormData({ name: '', phone: '', email: '', preferences: '' })
+        }
+        setIsModalOpen(true)
+        setActiveMenu(null)
+    }
+
     const handleCloseModal = () => {
         setIsModalOpen(false)
+        setEditingClient(null)
         setFormData({ name: '', phone: '', email: '', preferences: '' })
     }
 
@@ -58,17 +77,42 @@ const Clients: React.FC = () => {
         e.preventDefault()
         setIsSaving(true)
 
-        const { error } = await supabase
-            .from('clients')
-            .insert([formData])
+        if (editingClient) {
+            const { error } = await supabase
+                .from('clients')
+                .update(formData)
+                .eq('id', editingClient.id)
 
-        if (error) {
-            alert('Erro ao salvar cliente: ' + error.message)
+            if (error) alert('Erro ao atualizar: ' + error.message)
+            else {
+                handleCloseModal()
+                fetchClients()
+            }
         } else {
-            handleCloseModal()
-            fetchClients()
+            const { error } = await supabase
+                .from('clients')
+                .insert([formData])
+
+            if (error) alert('Erro ao salvar cliente: ' + error.message)
+            else {
+                handleCloseModal()
+                fetchClients()
+            }
         }
         setIsSaving(false)
+    }
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Tem certeza que deseja excluir esta cliente? Esta ação não pode ser desfeita.')) return
+
+        const { error } = await supabase
+            .from('clients')
+            .delete()
+            .eq('id', id)
+
+        if (error) alert('Erro ao excluir: ' + error.message)
+        else fetchClients()
+        setActiveMenu(null)
     }
 
     const filteredClients = clients.filter(client =>
@@ -85,7 +129,7 @@ const Clients: React.FC = () => {
                     <p className="text-sm text-gray-500">Gerencie sua base de clientes e históricos de fidelidade</p>
                 </div>
                 <button
-                    onClick={handleOpenModal}
+                    onClick={() => handleOpenModal()}
                     className="btn-primary flex items-center gap-2 w-fit"
                 >
                     <Plus className="w-5 h-5" />
@@ -171,10 +215,35 @@ const Clients: React.FC = () => {
                                                 {client.status}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button className="p-2 hover:bg-white rounded-lg transition-shadow border border-transparent hover:border-gray-100">
-                                                <MoreVertical className="w-4 h-4 text-gray-400" />
+                                        <td className="px-6 py-4 text-right relative">
+                                            <button
+                                                onClick={() => setActiveMenu(activeMenu === client.id ? null : client.id)}
+                                                className={`p-2 rounded-lg transition-all border ${activeMenu === client.id ? 'bg-brand-50 border-brand-100 text-brand-600' : 'hover:bg-white border-transparent hover:border-gray-100 text-gray-400'}`}
+                                            >
+                                                <MoreVertical className="w-4 h-4" />
                                             </button>
+
+                                            {activeMenu === client.id && (
+                                                <>
+                                                    <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)}></div>
+                                                    <div className="absolute right-6 top-14 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                        <button
+                                                            onClick={() => handleOpenModal(client)}
+                                                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 font-medium"
+                                                        >
+                                                            <Edit2 className="w-4 h-4 text-blue-500" />
+                                                            Editar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDelete(client.id)}
+                                                            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-medium"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                            Excluir
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 ))
@@ -189,8 +258,15 @@ const Clients: React.FC = () => {
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
                         <div className="p-8">
-                            <h2 className="text-2xl font-bold text-gray-800 mb-2">Cadastrar Cliente</h2>
-                            <p className="text-gray-500 mb-6 font-medium">Preencha os dados da nova cliente</p>
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-800">{editingClient ? 'Editar Cliente' : 'Cadastrar Cliente'}</h2>
+                                    <p className="text-gray-500 font-medium">{editingClient ? 'Atualize os dados da cliente' : 'Preencha os dados da nova cliente'}</p>
+                                </div>
+                                <button onClick={handleCloseModal} className="p-2 hover:bg-gray-50 rounded-xl transition-colors">
+                                    <X className="w-5 h-5 text-gray-400" />
+                                </button>
+                            </div>
 
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
@@ -256,7 +332,7 @@ const Clients: React.FC = () => {
                                         disabled={isSaving}
                                         className="flex-1 py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-200 active:scale-95 disabled:opacity-50"
                                     >
-                                        {isSaving ? 'Salvando...' : 'Salvar Cliente'}
+                                        {isSaving ? 'Salvando...' : editingClient ? 'Atualizar Cliente' : 'Salvar Cliente'}
                                     </button>
                                 </div>
                             </form>

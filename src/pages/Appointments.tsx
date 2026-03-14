@@ -4,6 +4,11 @@ import {
     ChevronRight,
     Plus,
     Clock,
+    MoreVertical,
+    Wallet,
+    TrendingUp,
+    Edit2,
+    Trash2,
 } from 'lucide-react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, eachDayOfInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -49,6 +54,8 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
     const [isLoading, setIsLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
+    const [activeMenu, setActiveMenu] = useState<string | null>(null)
+    const [editingId, setEditingId] = useState<string | null>(null)
 
     // Form states
     const [formData, setFormData] = useState({
@@ -103,54 +110,120 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
 
     const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
-    const handleCreateAppointment = async (e: React.FormEvent) => {
+    const handleEditClick = (appt: Appointment) => {
+        const appointmentDate = new Date(appt.start_time);
+        setFormData({
+            client_id: appt.client_id,
+            service_id: appt.service_id,
+            date: format(appointmentDate, 'yyyy-MM-dd'),
+            time: format(appointmentDate, 'HH:mm'),
+            payment_status: appt.payment_status || 'pendente',
+            payment_method: appt.payment_method || 'PIX'
+        });
+        setEditingId(appt.id);
+        setIsModalOpen(true);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setIsSaving(true)
 
         const start_time = new Date(`${formData.date}T${formData.time}:00`).toISOString()
         const end_time = new Date(new Date(start_time).getTime() + 60 * 60 * 1000).toISOString()
 
-        const { data, error } = await supabase
-            .from('appointments')
-            .insert([{
-                client_id: formData.client_id,
-                service_id: formData.service_id,
-                start_time,
-                end_time,
-                status: 'Agendado',
-                payment_status: formData.payment_status,
-                payment_method: formData.payment_method
-            }])
-            .select('*, client:clients(name, phone), service:services(name, price)')
-            .single()
+        const appointmentData = {
+            client_id: formData.client_id,
+            service_id: formData.service_id,
+            start_time,
+            end_time,
+            status: 'Agendado',
+            payment_status: formData.payment_status,
+            payment_method: formData.payment_method
+        };
+
+        let result;
+        if (editingId) {
+            result = await supabase
+                .from('appointments')
+                .update(appointmentData)
+                .eq('id', editingId)
+                .select('*, client:clients(name, phone), service:services(name, price)')
+                .single();
+        } else {
+            result = await supabase
+                .from('appointments')
+                .insert([appointmentData])
+                .select('*, client:clients(name, phone), service:services(name, price)')
+                .single();
+        }
+
+        const { data, error } = result;
 
         if (error) {
-            alert('Erro ao agendar: ' + error.message)
+            alert('Erro ao salvar: ' + error.message)
         } else if (data) {
-            // Trigger WhatsApp
-            const client = clients.find(c => c.id === formData.client_id)
-            const service = services.find(s => s.id === formData.service_id)
+            if (!editingId) {
+                // Trigger WhatsApp only for NEW appointments
+                const client = clients.find(c => c.id === formData.client_id)
+                const service = services.find(s => s.id === formData.service_id)
 
-            if (client && service) {
-                const pixCode = generatePixCopyPaste(service.price, `Reserva ${service.name}`, profile?.pix_key)
-                await sendWhatsAppNotification({
-                    clientName: client.name,
-                    phone: client.phone,
-                    date: formatDateBR(formData.date),
-                    time: formData.time,
-                    serviceName: service.name,
-                    price: formatCurrency(service.price),
-                    pixCode
-                })
-
-                setAppointments(prev => [...prev.map(a => a.id === data.id ? { ...a, notified: true } : a)])
-                await fetchAllData() // Refresh list
+                if (client && service) {
+                    const pixCode = generatePixCopyPaste(service.price, `Reserva ${service.name}`, profile?.pix_key)
+                    await sendWhatsAppNotification({
+                        clientName: client.name,
+                        phone: client.phone,
+                        date: formatDateBR(formData.date),
+                        time: formData.time,
+                        serviceName: service.name,
+                        price: formatCurrency(service.price),
+                        pixCode
+                    })
+                }
             }
 
+            await fetchAllData()
             setIsModalOpen(false)
-            setFormData({ ...formData, client_id: '', service_id: '' })
+            resetForm()
         }
         setIsSaving(false)
+    }
+
+    const resetForm = () => {
+        setFormData({
+            client_id: '',
+            service_id: '',
+            date: format(new Date(), 'yyyy-MM-dd'),
+            time: '09:00',
+            payment_status: 'pendente',
+            payment_method: 'PIX'
+        });
+        setEditingId(null);
+    };
+
+    const togglePaymentStatus = async (id: string, currentStatus?: string) => {
+        const newStatus = currentStatus === 'pago' ? 'pendente' : 'pago'
+        const { error } = await supabase
+            .from('appointments')
+            .update({ payment_status: newStatus })
+            .eq('id', id)
+
+        if (error) alert('Erro ao atualizar pagamento: ' + error.message)
+        else fetchAllData()
+    }
+
+    const handleDeleteAppointment = async (id: string) => {
+        if (!confirm('Tem certeza que deseja excluir este agendamento?')) return
+
+        const { error } = await supabase
+            .from('appointments')
+            .delete()
+            .eq('id', id)
+
+        if (error) {
+            alert('Erro ao excluir: ' + error.message)
+        } else {
+            fetchAllData()
+        }
     }
 
     const appointmentsToday = appointments.filter(appt =>
@@ -174,7 +247,7 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
                         </button>
                     </div>
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => { resetForm(); setIsModalOpen(true); }}
                         className="btn-primary flex items-center gap-2 whitespace-nowrap"
                     >
                         <Plus className="w-5 h-5" />
@@ -246,19 +319,48 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
                                 appointmentsToday.map(appt => (
                                     <div key={appt.id} className="p-3 rounded-2xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100 cursor-pointer">
                                         <div className="flex justify-between items-start mb-1">
-                                            <span className="text-sm font-bold text-gray-800">{format(new Date(appt.start_time), 'HH:mm')}</span>
-                                            <div className="flex items-center gap-1">
-                                                {appt.notified && <span className="text-[10px] text-green-600 font-bold">✓ ENVIADO</span>}
-                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase
-                                                    ${appt.payment_status === 'pago' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}
-                                                `}>
-                                                    {appt.payment_status === 'pago' ? 'PAGO' : 'PENDENTE'}
-                                                </span>
-                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase
-                                                    ${appt.status === 'Agendado' ? 'bg-blue-100 text-blue-700' : 'bg-brand-100 text-brand-700'}
-                                                `}>
-                                                    {appt.status}
-                                                </span>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-bold text-gray-800">{format(new Date(appt.start_time), 'HH:mm')}</span>
+                                                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                                    {appt.notified && <span className="text-[10px] text-green-600 font-bold">✓ ENVIADO</span>}
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase
+                                                        ${appt.payment_status === 'pago' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}
+                                                    `}>
+                                                        {appt.payment_status === 'pago' ? 'PAGO' : 'PENDENTE'}
+                                                    </span>
+                                                    {appt.payment_method && (
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase
+                                                            ${appt.payment_method === 'Troca' ? 'bg-purple-100 text-purple-700' : 'bg-brand-50 text-brand-600'}
+                                                        `}>
+                                                            {appt.payment_method}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                {appt.payment_method !== 'Troca' && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleEditClick(appt);
+                                                        }}
+                                                        title="Editar Agendamento"
+                                                        className="p-1.5 rounded-lg border transition-all bg-brand-50 border-brand-100 text-brand-600 hover:bg-brand-100"
+                                                    >
+                                                        <Edit2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteAppointment(appt.id);
+                                                    }}
+                                                    className="p-1.5 bg-red-50 border border-red-100 text-red-600 rounded-lg hover:bg-red-100 transition-all"
+                                                    title="Excluir"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
                                             </div>
                                         </div>
                                         <p className="text-sm text-gray-600 font-medium">{appt.client?.name}</p>
@@ -285,113 +387,117 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
             </div>
 
             {/* Modal Novo Agendamento */}
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200 overflow-hidden">
-                        <div className="p-8">
-                            <div className="mb-6">
-                                <h2 className="text-2xl font-bold text-gray-800">Novo Agendamento</h2>
-                                <p className="text-gray-500 font-medium text-sm">A cliente receberá detalhes e PIX por WhatsApp.</p>
+            {
+                isModalOpen && (
+                    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200 overflow-hidden">
+                            <div className="p-8">
+                                <div className="mb-6">
+                                    <h2 className="text-2xl font-bold text-gray-800">{editingId ? 'Editar Agendamento' : 'Novo Agendamento'}</h2>
+                                    <p className="text-gray-500 font-medium text-sm">
+                                        {editingId ? 'Altere os dados do agendamento conforme necessário.' : 'A cliente receberá detalhes e PIX por WhatsApp.'}
+                                    </p>
+                                </div>
+
+                                <form onSubmit={handleSubmit} className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Data</label>
+                                            <input
+                                                type="date"
+                                                required
+                                                value={formData.date}
+                                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Horário</label>
+                                            <input
+                                                type="time"
+                                                required
+                                                value={formData.time}
+                                                onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                                                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Cliente</label>
+                                        <select
+                                            required
+                                            value={formData.client_id}
+                                            onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
+                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all appearance-none"
+                                        >
+                                            <option value="">Escolha a cliente...</option>
+                                            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Serviço</label>
+                                        <select
+                                            required
+                                            value={formData.service_id}
+                                            onChange={(e) => setFormData({ ...formData, service_id: e.target.value })}
+                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all appearance-none"
+                                        >
+                                            <option value="">Escolha o serviço...</option>
+                                            {services.map(s => <option key={s.id} value={s.id}>{s.name} - {formatCurrency(s.price)}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Pagamento</label>
+                                            <select
+                                                value={formData.payment_status}
+                                                onChange={(e) => setFormData({ ...formData, payment_status: e.target.value })}
+                                                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                                            >
+                                                <option value="pendente">Pendente</option>
+                                                <option value="pago">Pago</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Forma</label>
+                                            <select
+                                                value={formData.payment_method}
+                                                onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
+                                                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                                            >
+                                                <option value="PIX">PIX</option>
+                                                <option value="Cartão">Cartão</option>
+                                                <option value="Dinheiro">Dinheiro</option>
+                                                <option value="Troca">Troca de Serviço</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-4 pt-6">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setIsModalOpen(false); resetForm(); }}
+                                            className="flex-1 py-4 text-gray-400 font-bold hover:text-gray-600 transition-colors"
+                                        >
+                                            Voltar
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={isSaving}
+                                            className={`flex-[2] py-4 text-white font-bold rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50 ${editingId ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-200' : 'bg-brand-600 hover:bg-brand-700 shadow-brand-200'
+                                                }`}
+                                        >
+                                            {isSaving ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Confirmar e Notificar'}
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
-
-                            <form onSubmit={handleCreateAppointment} className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Data</label>
-                                        <input
-                                            type="date"
-                                            required
-                                            value={formData.date}
-                                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Horário</label>
-                                        <input
-                                            type="time"
-                                            required
-                                            value={formData.time}
-                                            onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Cliente</label>
-                                    <select
-                                        required
-                                        value={formData.client_id}
-                                        onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all appearance-none"
-                                    >
-                                        <option value="">Escolha a cliente...</option>
-                                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Serviço</label>
-                                    <select
-                                        required
-                                        value={formData.service_id}
-                                        onChange={(e) => setFormData({ ...formData, service_id: e.target.value })}
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all appearance-none"
-                                    >
-                                        <option value="">Escolha o serviço...</option>
-                                        {services.map(s => <option key={s.id} value={s.id}>{s.name} - {formatCurrency(s.price)}</option>)}
-                                    </select>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Pagamento</label>
-                                        <select
-                                            value={formData.payment_status}
-                                            onChange={(e) => setFormData({ ...formData, payment_status: e.target.value })}
-                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
-                                        >
-                                            <option value="pendente">Pendente</option>
-                                            <option value="pago">Pago</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Forma</label>
-                                        <select
-                                            value={formData.payment_method}
-                                            onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
-                                        >
-                                            <option value="PIX">PIX</option>
-                                            <option value="Cartão">Cartão</option>
-                                            <option value="Dinheiro">Dinheiro</option>
-                                            <option value="Troca">Troca de Serviço</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-4 pt-6">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsModalOpen(false)}
-                                        className="flex-1 py-4 text-gray-400 font-bold hover:text-gray-600 transition-colors"
-                                    >
-                                        Voltar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={isSaving}
-                                        className="flex-[2] py-4 bg-brand-600 text-white font-bold rounded-2xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-200 active:scale-95 disabled:opacity-50"
-                                    >
-                                        {isSaving ? 'Processando...' : 'Confirmar e Notificar'}
-                                    </button>
-                                </div>
-                            </form>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
         </div>
     )
 }

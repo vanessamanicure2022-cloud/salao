@@ -16,6 +16,7 @@ const Services: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true)
     const [isSaving, setIsSaving] = useState(false)
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [editingService, setEditingService] = useState<Service | null>(null)
 
     // Form state
     const [formData, setFormData] = useState({
@@ -41,9 +42,25 @@ const Services: React.FC = () => {
         fetchServices()
     }, [])
 
-    const handleOpenModal = () => setIsModalOpen(true)
+    const handleOpenModal = (service?: Service) => {
+        if (service) {
+            setEditingService(service)
+            setFormData({
+                name: service.name,
+                duration_minutes: service.duration_minutes,
+                price: service.price,
+                category: service.category,
+            })
+        } else {
+            setEditingService(null)
+            setFormData({ name: '', duration_minutes: 60, price: 0, category: 'Manicure' })
+        }
+        setIsModalOpen(true)
+    }
+
     const handleCloseModal = () => {
         setIsModalOpen(false)
+        setEditingService(null)
         setFormData({ name: '', duration_minutes: 60, price: 0, category: 'Manicure' })
     }
 
@@ -51,15 +68,27 @@ const Services: React.FC = () => {
         e.preventDefault()
         setIsSaving(true)
 
-        const { error } = await supabase
-            .from('services')
-            .insert([formData])
+        if (editingService) {
+            const { error } = await supabase
+                .from('services')
+                .update(formData)
+                .eq('id', editingService.id)
 
-        if (error) {
-            alert('Erro ao salvar serviço: ' + error.message)
+            if (error) alert('Erro ao atualizar serviço: ' + error.message)
+            else {
+                handleCloseModal()
+                fetchServices()
+            }
         } else {
-            handleCloseModal()
-            fetchServices()
+            const { error } = await supabase
+                .from('services')
+                .insert([formData])
+
+            if (error) alert('Erro ao salvar serviço: ' + error.message)
+            else {
+                handleCloseModal()
+                fetchServices()
+            }
         }
         setIsSaving(false)
     }
@@ -87,7 +116,7 @@ const Services: React.FC = () => {
                     <p className="text-gray-500">Configure seus serviços, durações e preços</p>
                 </div>
                 <button
-                    onClick={handleOpenModal}
+                    onClick={() => handleOpenModal()}
                     className="btn-primary flex items-center gap-2"
                 >
                     <Plus className="w-5 h-5" />
@@ -103,7 +132,7 @@ const Services: React.FC = () => {
                 <div className="text-center py-20 bg-white rounded-[2.5rem] border-2 border-dashed border-gray-100">
                     <Settings2 className="w-16 h-16 text-gray-200 mx-auto mb-4" />
                     <p className="text-gray-500 font-medium">Nenhum serviço cadastrado.</p>
-                    <button onClick={handleOpenModal} className="mt-4 text-brand-600 font-bold hover:underline">
+                    <button onClick={() => handleOpenModal()} className="mt-4 text-brand-600 font-bold hover:underline">
                         Cadastrar agora
                     </button>
                 </div>
@@ -116,7 +145,10 @@ const Services: React.FC = () => {
                                     <Settings2 className="w-6 h-6" />
                                 </div>
                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 hover:text-brand-600 transition-colors">
+                                    <button
+                                        onClick={() => handleOpenModal(service)}
+                                        className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 hover:text-brand-600 transition-colors"
+                                    >
                                         <Edit2 className="w-4 h-4" />
                                     </button>
                                     <button
@@ -158,7 +190,7 @@ const Services: React.FC = () => {
                     <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
                         <div className="p-8">
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-2xl font-bold text-gray-800">Novo Serviço</h2>
+                                <h2 className="text-2xl font-bold text-gray-800">{editingService ? 'Editar Serviço' : 'Novo Serviço'}</h2>
                                 <button onClick={handleCloseModal} className="p-2 hover:bg-gray-50 rounded-xl transition-colors">
                                     <X className="w-5 h-5 text-gray-400" />
                                 </button>
@@ -223,7 +255,7 @@ const Services: React.FC = () => {
                                         disabled={isSaving}
                                         className="w-full py-4 bg-brand-600 text-white font-bold rounded-2xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-200 active:scale-95 disabled:opacity-50"
                                     >
-                                        {isSaving ? 'Salvando...' : 'Cadastrar Serviço'}
+                                        {isSaving ? 'Salvando...' : editingService ? 'Atualizar Serviço' : 'Cadastrar Serviço'}
                                     </button>
                                 </div>
                             </form>
