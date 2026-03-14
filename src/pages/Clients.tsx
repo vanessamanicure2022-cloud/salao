@@ -151,8 +151,92 @@ const Clients: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left min-w-[700px] md:min-w-0">
+                {/* Mobile Layout (Cards) */}
+                <div className="md:hidden divide-y divide-gray-50">
+                    {isLoading ? (
+                        <div className="px-6 py-20 text-center text-gray-400">
+                            Carregando clientes...
+                        </div>
+                    ) : filteredClients.length === 0 ? (
+                        <div className="px-6 py-20 text-center text-gray-400">
+                            Nenhum cliente encontrado.
+                        </div>
+                    ) : (
+                        filteredClients.map(client => (
+                            <div key={client.id} className="p-4 hover:bg-gray-50/50 transition-colors relative">
+                                <div className="flex items-center gap-4 mb-3">
+                                    <div className="w-12 h-12 bg-brand-100 rounded-full flex items-center justify-center text-brand-700 font-bold uppercase text-lg">
+                                        {client.name.charAt(0)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-base font-bold text-gray-800 truncate">{client.name}</p>
+                                        <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-bold uppercase mt-1
+                                            ${client.status === 'diamante' ? 'bg-purple-100 text-purple-700' :
+                                                client.status === 'ouro' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}
+                                        `}>
+                                            {client.status}
+                                        </span>
+                                    </div>
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setActiveMenu(activeMenu === client.id ? null : client.id)}
+                                            className={`p-2 rounded-lg transition-all border ${activeMenu === client.id ? 'bg-brand-50 border-brand-100 text-brand-600' : 'hover:bg-white border-transparent hover:border-gray-100 text-gray-400'}`}
+                                        >
+                                            <MoreVertical className="w-5 h-5" />
+                                        </button>
+
+                                        {activeMenu === client.id && (
+                                            <>
+                                                <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)}></div>
+                                                <div className="absolute right-0 top-10 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                    <button
+                                                        onClick={() => handleOpenModal(client)}
+                                                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 font-medium"
+                                                    >
+                                                        <Edit2 className="w-4 h-4 text-blue-500" />
+                                                        Editar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(client.id)}
+                                                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-medium"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                        Excluir
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 text-xs text-gray-600 bg-gray-50/50 p-3 rounded-2xl">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[10px] text-gray-400 uppercase font-bold">Contato</span>
+                                        <div className="flex items-center gap-1.5 truncate">
+                                            <Phone className="w-3 h-3 text-brand-400" />
+                                            {client.phone || 'Sem tel.'}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[10px] text-gray-400 uppercase font-bold">Serviços</span>
+                                        <p className="font-semibold text-gray-700">{client.services_count || 0} atendimentos</p>
+                                    </div>
+                                    <div className="col-span-2 flex flex-col gap-1 mt-1 border-t border-gray-100 pt-2">
+                                        <span className="text-[10px] text-gray-400 uppercase font-bold">Preferência</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <Heart className="w-3 h-3 text-brand-400 fill-brand-400" />
+                                            <span className="font-medium">{client.preferences || 'Nenhuma preferência'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* Desktop Layout (Table) */}
+                <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left">
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
@@ -252,6 +336,7 @@ const Clients: React.FC = () => {
                     </table>
                 </div>
             </div>
+
 
             {/* Modal Novo Cliente */}
             {isModalOpen && (
