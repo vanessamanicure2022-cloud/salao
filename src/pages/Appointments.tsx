@@ -237,7 +237,7 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
     }
 
     const appointmentsForSelectedDate = appointments.filter(appt =>
-        isSameDay(new Date(appt.start_time), selectedDate)
+        isSameDay(new Date(appt.start_time), selectedDate) && appt.payment_status !== 'pago'
     )
 
     const filteredAllAppointments = appointments.filter(appt => {
