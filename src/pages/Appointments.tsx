@@ -9,8 +9,11 @@ import {
     TrendingUp,
     Edit2,
     Trash2,
+    Search,
+    X,
+    Calendar as CalendarIcon
 } from 'lucide-react'
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, eachDayOfInterval } from 'date-fns'
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, eachDayOfInterval, isAfter, isBefore, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../services/supabase'
 import { sendWhatsAppNotification } from '../services/whatsapp'
@@ -27,6 +30,7 @@ interface Appointment {
     notified?: boolean;
     client?: { name: string; phone: string };
     service?: { name: string; price: number };
+    extra_amount?: number;
 }
 
 interface Client {
@@ -53,6 +57,8 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
     const [services, setServices] = useState<Service[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [isListModalOpen, setIsListModalOpen] = useState(false)
+    const [listSearchTerm, setListSearchTerm] = useState('')
     const [isSaving, setIsSaving] = useState(false)
     const [activeMenu, setActiveMenu] = useState<string | null>(null)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -64,7 +70,8 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
         date: format(new Date(), 'yyyy-MM-dd'),
         time: '09:00',
         payment_status: 'pendente',
-        payment_method: 'PIX'
+        payment_method: 'PIX',
+        extra_amount: ''
     })
 
     const fetchAllData = async () => {
@@ -118,7 +125,8 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
             date: format(appointmentDate, 'yyyy-MM-dd'),
             time: format(appointmentDate, 'HH:mm'),
             payment_status: appt.payment_status || 'pendente',
-            payment_method: appt.payment_method || 'PIX'
+            payment_method: appt.payment_method || 'PIX',
+            extra_amount: appt.extra_amount ? appt.extra_amount.toString() : ''
         });
         setEditingId(appt.id);
         setIsModalOpen(true);
@@ -138,7 +146,8 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
             end_time,
             status: 'Agendado',
             payment_status: formData.payment_status,
-            payment_method: formData.payment_method
+            payment_method: formData.payment_method,
+            extra_amount: formData.extra_amount ? parseFloat(formData.extra_amount) : 0
         };
 
         let result;
@@ -195,7 +204,8 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
             date: format(new Date(), 'yyyy-MM-dd'),
             time: '09:00',
             payment_status: 'pendente',
-            payment_method: 'PIX'
+            payment_method: 'PIX',
+            extra_amount: ''
         });
         setEditingId(null);
     };
@@ -226,9 +236,18 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
         }
     }
 
-    const appointmentsToday = appointments.filter(appt =>
-        isSameDay(new Date(appt.start_time), new Date())
+    const appointmentsForSelectedDate = appointments.filter(appt =>
+        isSameDay(new Date(appt.start_time), selectedDate)
     )
+
+    const filteredAllAppointments = appointments.filter(appt => {
+        const searchLower = listSearchTerm.toLowerCase()
+        return (
+            (appt.client?.name?.toLowerCase() || '').includes(searchLower) ||
+            (appt.service?.name?.toLowerCase() || '').includes(searchLower) ||
+            format(new Date(appt.start_time), 'dd/MM/yyyy').includes(listSearchTerm)
+        )
+    }).sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
 
     return (
         <div className="max-w-6xl mx-auto pb-20">
@@ -308,15 +327,15 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                         <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
                             <Clock className="w-5 h-5 text-brand-500" />
-                            Próximos Hoje
+                            {isSameDay(selectedDate, new Date()) ? 'Próximos Hoje' : `Agendamentos ${format(selectedDate, "dd/MM")}`}
                         </h3>
                         <div className="space-y-4">
                             {isLoading ? (
                                 <p className="text-center py-4 text-gray-400 text-sm">Carregando...</p>
-                            ) : appointmentsToday.length === 0 ? (
-                                <p className="text-center py-4 text-gray-400 text-sm">Nenhum agendamento para hoje.</p>
+                            ) : appointmentsForSelectedDate.length === 0 ? (
+                                <p className="text-center py-4 text-gray-400 text-sm">Nenhum agendamento para este dia.</p>
                             ) : (
-                                appointmentsToday.map(appt => (
+                                appointmentsForSelectedDate.map(appt => (
                                     <div key={appt.id} className="p-3 rounded-2xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100 cursor-pointer">
                                         <div className="flex justify-between items-start mb-1">
                                             <div className="flex flex-col">
@@ -369,8 +388,11 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
                                 ))
                             )}
                         </div>
-                        <button className="w-full mt-6 py-3 text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">
-                            Ver todos agendamentos
+                        <button
+                            onClick={() => setIsListModalOpen(true)}
+                            className="w-full mt-6 py-3 text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors border-t border-gray-50 pt-4"
+                        >
+                            Ver mais agendamentos
                         </button>
                     </div>
 
@@ -476,6 +498,17 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
                                         </div>
                                     </div>
 
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Adicionar mais R$</label>
+                                        <input
+                                            type="number"
+                                            placeholder="Ex: 10.00"
+                                            value={formData.extra_amount}
+                                            onChange={(e) => setFormData({ ...formData, extra_amount: e.target.value })}
+                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                                        />
+                                    </div>
+
                                     <div className="flex gap-4 pt-6">
                                         <button
                                             type="button"
@@ -498,6 +531,112 @@ const Appointments: React.FC<AppointmentsProps> = ({ profile }) => {
                         </div>
                     </div>
                 )}
+
+            {/* Modal Lista de Todos Agendamentos */}
+            {isListModalOpen && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] shadow-2xl animate-in fade-in zoom-in duration-200 overflow-hidden flex flex-col">
+                        <div className="p-8 border-b border-gray-100">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Todos Agendamentos</h2>
+                                    <p className="text-gray-500 font-medium text-sm">Histórico e agendamentos futuros.</p>
+                                </div>
+                                <button
+                                    onClick={() => setIsListModalOpen(false)}
+                                    className="p-2 hover:bg-gray-50 rounded-xl transition-colors"
+                                >
+                                    <X className="w-6 h-6 text-gray-400" />
+                                </button>
+                            </div>
+
+                            <div className="relative">
+                                <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por cliente, serviço ou data (dd/mm/aaaa)..."
+                                    value={listSearchTerm}
+                                    onChange={(e) => setListSearchTerm(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-8 pt-4">
+                            <div className="space-y-3">
+                                {isLoading ? (
+                                    <p className="text-center py-10 text-gray-400">Carregando...</p>
+                                ) : filteredAllAppointments.length === 0 ? (
+                                    <p className="text-center py-10 text-gray-400">Nenhum agendamento encontrado.</p>
+                                ) : (
+                                    filteredAllAppointments.map(appt => (
+                                        <div
+                                            key={appt.id}
+                                            className="p-4 rounded-2xl bg-gray-50/50 border border-gray-100 hover:bg-white hover:shadow-md transition-all group"
+                                        >
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 bg-white rounded-xl flex flex-col items-center justify-center border border-gray-100 shadow-sm">
+                                                        <span className="text-[10px] font-bold text-brand-500 uppercase">{format(new Date(appt.start_time), 'MMM', { locale: ptBR })}</span>
+                                                        <span className="text-lg font-bold text-gray-800 leading-tight">{format(new Date(appt.start_time), 'dd')}</span>
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-gray-800">{appt.client?.name}</h4>
+                                                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                                                            <Clock className="w-3 h-3" />
+                                                            {format(new Date(appt.start_time), 'HH:mm')}
+                                                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                                                            {appt.service?.name}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-4">
+                                                    <div className="hidden sm:flex flex-col items-end">
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase mb-1
+                                                            ${appt.payment_status === 'pago' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}
+                                                        `}>
+                                                            {appt.payment_status === 'pago' ? 'PAGO' : 'PENDENTE'}
+                                                        </span>
+                                                        <span className="text-xs font-bold text-gray-700">{formatCurrency(appt.service?.price || 0)}</span>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                handleEditClick(appt);
+                                                                setIsListModalOpen(false);
+                                                            }}
+                                                            className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all"
+                                                        >
+                                                            <Edit2 className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteAppointment(appt.id)}
+                                                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-8 border-t border-gray-100 bg-gray-50/30">
+                            <button
+                                onClick={() => setIsListModalOpen(false)}
+                                className="w-full py-4 bg-white border border-gray-200 text-gray-600 font-bold rounded-2xl hover:bg-gray-50 transition-all shadow-sm"
+                            >
+                                Fechar Lista
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

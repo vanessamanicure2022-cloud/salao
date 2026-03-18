@@ -31,13 +31,32 @@ const Clients: React.FC = () => {
 
     const fetchClients = async () => {
         setIsLoading(true)
-        const { data, error } = await supabase
-            .from('clients')
-            .select('*')
-            .order('name', { ascending: true })
+        try {
+            // First fetch the clients
+            const { data: clientsData, error: clientsError } = await supabase
+                .from('clients')
+                .select('*')
+                .order('name', { ascending: true })
 
-        if (data) setClients(data)
-        if (error) console.error('Error fetching clients:', error)
+            if (clientsError) throw clientsError;
+
+            // Then fetch the appointments counts
+            const { data: appointmentsData, error: apptError } = await supabase
+                .from('appointments')
+                .select('client_id');
+
+            if (apptError) throw apptError;
+
+            // Map the counts back to the clients
+            const clientsWithCount = (clientsData || []).map(client => ({
+                ...client,
+                services_count: (appointmentsData || []).filter(appt => appt.client_id === client.id).length
+            }));
+
+            setClients(clientsWithCount);
+        } catch (error) {
+            console.error('Error fetching clients data:', error)
+        }
         setIsLoading(false)
     }
 

@@ -8,6 +8,9 @@ const Login: React.FC = () => {
     const [password, setPassword] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [isForgot, setIsForgot] = useState(false)
+    const [forgotEmail, setForgotEmail] = useState('')
+    const [forgotMessage, setForgotMessage] = useState<string | null>(null)
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -22,7 +25,24 @@ const Login: React.FC = () => {
         if (error) {
             setError(error.message)
             setIsLoading(false)
+        } else {
+            setIsLoading(false)
         }
+    }
+
+    const handleForgot = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setIsLoading(true)
+        setForgotMessage(null)
+        const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+            redirectTo: window.location.origin + '/reset-password'
+        })
+        if (error) {
+            setForgotMessage(error.message)
+        } else {
+            setForgotMessage('Email de redefinição enviado. Verifique sua caixa de entrada.')
+        }
+        setIsLoading(false)
     }
 
     return (
@@ -62,35 +82,76 @@ const Login: React.FC = () => {
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Senha</label>
-                            <div className="relative">
-                                <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                                <input
-                                    type="password"
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none text-gray-800"
-                                    placeholder="••••••••"
-                                />
+                        {isForgot ? (
+                            <form onSubmit={handleForgot} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">E-mail para redefinir senha</label>
+                                    <div className="relative">
+                                        <Mail className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                        <input
+                                            type="email"
+                                            required
+                                            value={forgotEmail}
+                                            onChange={(e) => setForgotEmail(e.target.value)}
+                                            className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none text-gray-800"
+                                            placeholder="vanessa@exemplo.com"
+                                        />
+                                    </div>
+                                </div>
+                                {forgotMessage && (
+                                    <p className="text-center text-sm text-green-600">{forgotMessage}</p>
+                                )}
+                                <button
+                                    type="submit"
+                                    disabled={isLoading}
+                                    className="w-full py-4 bg-brand-600 text-white font-bold rounded-2xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-200 disabled:opacity-50"
+                                >
+                                    {isLoading ? 'Enviando...' : 'Enviar link de redefinição'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setIsForgot(false); setForgotMessage(null); setForgotEmail(''); }}
+                                    className="w-full py-2 text-gray-600"
+                                >
+                                    Voltar ao login
+                                </button>
+                            </form>
+                        ) : (
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">Senha</label>
+                                <div className="relative">
+                                    <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="password"
+                                        required
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none text-gray-800"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                                <p className="mt-2 text-right text-sm text-brand-600 cursor-pointer" onClick={() => setIsForgot(true)}>
+                                    Esqueceu a senha?
+                                </p>
                             </div>
-                        </div>
+                        )}
 
-                        <div className="pt-4">
-                            <button
-                                type="submit"
-                                disabled={isLoading}
-                                className="w-full py-4 bg-brand-600 text-white font-bold rounded-2xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        Entrando...
-                                    </>
-                                ) : 'Entrar no Sistema'}
-                            </button>
-                        </div>
+                        {!isForgot && (
+                            <div className="pt-4">
+                                <button
+                                    type="submit"
+                                    disabled={isLoading}
+                                    className="w-full py-4 bg-brand-600 text-white font-bold rounded-2xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {isLoading ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            Entrando...
+                                        </>
+                                    ) : 'Entrar no Sistema'}
+                                </button>
+                            </div>
+                        )}
                     </form>
                 </div>
 
