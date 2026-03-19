@@ -11,6 +11,27 @@ import Inventory from './pages/Inventory'
 import MobileNav from './components/MobileNav'
 import { Session } from '@supabase/supabase-js'
 
+// Componente de Erro para evitar tela branca
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
+    constructor(props: any) {
+        super(props)
+        this.state = { hasError: false, error: null }
+    }
+    static getDerivedStateFromError(error: any) { return { hasError: true, error } }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="p-10 text-center bg-red-50 min-h-screen flex flex-col items-center justify-center">
+                    <h1 className="text-xl font-bold text-red-600 mb-2">Ops! Algo deu errado.</h1>
+                    <p className="text-sm text-red-400 mb-4">{this.state.error?.message || 'Erro desconhecido'}</p>
+                    <button onClick={() => window.location.reload()} className="px-4 py-2 bg-red-600 text-white rounded-xl">Recarregar</button>
+                </div>
+            )
+        }
+        return this.props.children
+    }
+}
+
 const App: React.FC = () => {
     const [session, setSession] = useState<Session | null>(null)
     const [activePage, setActivePage] = useState('appointments')
@@ -88,15 +109,17 @@ const App: React.FC = () => {
         return <Login />
     }
     return (
-        <div className="flex h-screen bg-[#FDFBFB]">
-            <Sidebar activePage={activePage} setActivePage={setActivePage} profile={profile} />
+        <ErrorBoundary>
+            <div className="flex h-screen bg-[#FDFBFB]">
+                <Sidebar activePage={activePage} setActivePage={setActivePage} profile={profile} />
 
-            <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
-                {renderPage()}
-            </main>
+                <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+                    {renderPage()}
+                </main>
 
-            <MobileNav activePage={activePage} setActivePage={setActivePage} />
-        </div>
+                <MobileNav activePage={activePage} setActivePage={setActivePage} />
+            </div>
+        </ErrorBoundary>
     )
 }
 

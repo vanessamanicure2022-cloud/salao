@@ -3,30 +3,81 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml"
-    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💅</text></svg>" />
+  <link rel="icon"
+    href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQEAAAAMAtY9AAAAAXNSR0IArs4c6QAAAKlJREFUKFNjYGA4wMDAnMDAwDCAkQEDmBj+A8mDGAIYGP4DyS0BA4YmDAwYmDAwYmDAwYmDAwMTBv8fGv//PzL+//+f8X8GIA8ofmA48P8/UAHIDBgAAG3/Gv8P/v8PVDMAVQNAAAAA//8DpgAA" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Vanessa Cristina - Gestão de Salão</title>
-  <script>
-    // Limpeza agressiva de Cache e Service Workers antigos que bloqueiam o carregamento em dispositivos móveis
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function (registrations) {
-        for (let registration of registrations) {
-          registration.unregister();
-        }
-      });
+  <style>
+    #root-loading {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #FDFBFB;
+      font-family: sans-serif;
+      color: #DB2777;
     }
-    // Opcional: Limpar caches do próprio navegador se existirem
-    if ('caches' in window) {
-      caches.keys().then(function (names) {
-        for (let name of names) caches.delete(name);
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #FBCFE8;
+      border-top: 4px solid #DB2777;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    #debug-reporter {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #ef4444;
+      color: white;
+      padding: 15px;
+      font-size: 12px;
+      z-index: 10000;
+      display: none;
+      word-break: break-all;
+    }
+  </style>
+  <script>
+    window.onerror = function (msg, url, line, col, error) {
+      var reporter = document.getElementById('debug-reporter');
+      if (reporter) {
+        reporter.style.display = 'block';
+        reporter.innerText = 'ERRO: ' + msg + (url ? '\nLocal: ' + url + ':' + line : '');
+      }
+      return false;
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        for (let reg of regs) reg.unregister();
       });
     }
   </script>
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="debug-reporter"></div>
+  <div id="root">
+    <div id="root-loading">
+      <div class="spinner"></div>
+      <p>Tentando abrir o sistema...</p>
+    </div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 
