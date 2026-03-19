@@ -3,14 +3,23 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💅</text></svg>" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Vanessa Cristina - Gestão de Salão</title>
   <script>
-    // Limpeza forçada de qualquer resquício de PWA antigo
+    // Limpeza agressiva de Cache e Service Workers antigos que bloqueiam o carregamento em dispositivos móveis
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function (registrations) {
-        for (let registration of registrations) registration.unregister();
+        for (let registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+    // Opcional: Limpar caches do próprio navegador se existirem
+    if ('caches' in window) {
+      caches.keys().then(function (names) {
+        for (let name of names) caches.delete(name);
       });
     }
   </script>

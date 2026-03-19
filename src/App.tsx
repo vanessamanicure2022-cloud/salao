@@ -18,11 +18,23 @@ const App: React.FC = () => {
     const [profile, setProfile] = useState<any>(null)
 
     useEffect(() => {
-        // Obter sessão inicial
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session)
+        // Obter sessão inicial com tempo limite de segurança
+        const authTimeout = setTimeout(() => {
             setIsLoading(false)
-        })
+        }, 5000)
+
+        // Obter sessão inicial
+        supabase.auth.getSession()
+            .then(({ data: { session } }) => {
+                clearTimeout(authTimeout)
+                setSession(session)
+                setIsLoading(false)
+            })
+            .catch((err) => {
+                console.error('Erro na auth:', err)
+                clearTimeout(authTimeout)
+                setIsLoading(false)
+            })
 
         // Escutar mudanças na autenticação
         const {
@@ -33,8 +45,12 @@ const App: React.FC = () => {
 
         // Fetch profile
         const fetchProfile = async () => {
-            const { data } = await supabase.from('profiles').select('*').limit(1).single()
-            if (data) setProfile(data)
+            try {
+                const { data } = await supabase.from('profiles').select('*').limit(1).single()
+                if (data) setProfile(data)
+            } catch (err) {
+                console.error('Erro profile:', err)
+            }
         }
         fetchProfile()
 
