@@ -14,7 +14,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #FDFBFB;
+      background: #FFF1F2;
       font-family: sans-serif;
       color: #DB2777;
     }
@@ -58,7 +58,7 @@
       var reporter = document.getElementById('debug-reporter');
       if (reporter) {
         reporter.style.display = 'block';
-        reporter.innerText = 'ERRO: ' + msg + (url ? '\nLocal: ' + url + ':' + line : '');
+        reporter.innerText = 'ERRO (V1.2): ' + msg + (url ? '\nLocal: ' + url + ':' + line : '');
       }
       return false;
     };
@@ -75,10 +75,11 @@
   <div id="root">
     <div id="root-loading">
       <div class="spinner"></div>
-      <p>Tentando abrir o sistema...</p>
+      <p style="font-weight: bold; margin-bottom: 5px;">SISTEMA V1.2 - AGUARDE...</p>
+      <p style="font-size: 10px; opacity: 0.7;">Se demorar, limpe o cache do navegador.</p>
     </div>
   </div>
-  <script type="module" src="/src/main.tsx"></script>
+  <script type="module" src="./src/main.tsx"></script>
 </body>
 
 </html>
